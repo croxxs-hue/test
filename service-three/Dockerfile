@@ -13,4 +13,4 @@ RUN chmod +x /app/some.sh
 WORKDIR /app
 
 # Run the script
-CMD ["bash", "sometwo.sh"]
+CMD ["bash", "some.sh"]
