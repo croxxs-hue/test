@@ -6,6 +6,7 @@ on:
   pull_request:
 
 jobs:
+
   detect:
     runs-on: ubuntu-latest
     outputs:
@@ -100,14 +101,14 @@ jobs:
           IMAGE="${{ matrix.folder }}:ci"
           NAME="${{ matrix.folder }}-run"
 
-          echo "Running container $NAME"
+          echo "Running container: $NAME"
           docker run -d --name "$NAME" "$IMAGE"
 
-          echo "Waiting for container to start..."
+          echo "Waiting for container startup..."
           sleep 3
 
           echo "===== Container Logs ====="
-          docker logs "$NAME" || true
+          docker logs "$NAME"
 
           echo "Stopping container..."
           docker stop "$NAME" || true
@@ -115,6 +116,6 @@ jobs:
           echo "Removing container..."
           docker rm "$NAME" || true
 
-      - name: Dockerfile missing – skipping
+      - name: Dockerfile missing - skip
         if: steps.check.outputs.exists == 'false'
-        run: echo "Skipping '${{ matrix.folder }}' → No Dockerfile found"
+        run: echo "Skipping '${{ matrix.folder }}' → No Dockerfile found."
