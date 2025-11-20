@@ -1,11 +1,11 @@
-name: Count Files and Folders
+name: Minimal CI - Count + Build Services
 
 on:
   push:
   pull_request:
 
 jobs:
-  count:
+  build-services:
     runs-on: ubuntu-latest
 
     steps:
@@ -18,3 +18,36 @@ jobs:
 
           echo "Total files: $FILES"
           echo "Total folders: $DIRS"
+
+      - name: Define service list
+        run: |
+          echo "SERVICE_LIST='service1 service2 service3'" >> $GITHUB_ENV
+
+      - name: Build and run each service
+        run: |
+          for SVC in $SERVICE_LIST; do
+            echo "==== Processing $SVC ===="
+
+            if [ ! -f "$SVC/Dockerfile" ]; then
+              echo "Skipping $SVC → Dockerfile missing."
+              continue
+            fi
+
+            IMAGE="$SVC:ci"
+            CONTAINER="$SVC-run"
+
+            echo "Building image: $IMAGE"
+            docker build -t "$IMAGE" "$SVC"
+
+            echo "Running container: $CONTAINER"
+            docker run -d --name "$CONTAINER" "$IMAGE"
+
+            echo "Waiting for startup..."
+            sleep 3
+
+            echo "===== Logs for $SVC ====="
+            docker logs "$CONTAINER"
+
+            echo "Cleaning up…"
+            docker rm -f "$CONTAINER" || true
+          done
