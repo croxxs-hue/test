@@ -21,7 +21,7 @@ jobs:
 
       - name: Define service list
         run: |
-          echo "SERVICE_LIST='service-one service-two service-three'" >> $GITHUB_ENV
+          echo "SERVICE_LIST='service1 service2 service3'" >> $GITHUB_ENV
 
       - name: Build and run each service
         run: |
