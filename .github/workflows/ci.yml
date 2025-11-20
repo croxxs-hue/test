@@ -17,51 +17,47 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Export refs safely
+        run: |
+          echo "EVENT_NAME=${{ github.event_name }}" >> "$GITHUB_ENV"
+          echo "BASE_REF=${{ github.base_ref }}" >> "$GITHUB_ENV"
+          echo "HEAD_REF=${{ github.head_ref }}" >> "$GITHUB_ENV"
+
       - name: Determine diff range
         id: range
-        run: |
-          if [ "${{ github.event_name }}" = "pull_request" ]; then
-            echo "range=${{ github.base_ref }}...${{ github.head_ref }}" >> $GITHUB_OUTPUT
-          else
-            echo "range=HEAD~1 HEAD" >> $GITHUB_OUTPUT
+        run: >
+          if [ "$EVENT_NAME" = "pull_request" ];
+          then printf "range=%s...%s\n" "$BASE_REF" "$HEAD_REF" >> "$GITHUB_OUTPUT";
+          else printf "range=HEAD~1 HEAD\n" >> "$GITHUB_OUTPUT";
           fi
 
       - name: Check if version.txt changed
         id: version_changed
-        run: |
-          if git diff --name-only ${{ steps.range.outputs.range }} | grep -q "version.txt"; then
-            echo "changed=true" >> $GITHUB_OUTPUT
-          else
-            echo "changed=false" >> $GITHUB_OUTPUT
+        run: >
+          if git diff --name-only "${{ steps.range.outputs.range }}" | grep -q "version.txt";
+          then printf "changed=true\n" >> "$GITHUB_OUTPUT";
+          else printf "changed=false\n" >> "$GITHUB_OUTPUT";
           fi
 
       - name: Stop if version not updated
         if: steps.version_changed.outputs.changed == 'false'
-        run: |
-          echo "version.txt not changed, skipping all services."
-          echo "folders=[]" >> $GITHUB_OUTPUT
+        run: printf "version.txt not changed, skipping all services.\n"; printf "folders=[]\n" >> "$GITHUB_OUTPUT"
 
       - name: Detect changed folders
         id: detect_folders
         if: steps.version_changed.outputs.changed == 'true'
-        run: |
-          CHANGED=$(git diff --name-only ${{ steps.range.outputs.range }} | cut -d/ -f1 | sort -u)
-
-          FILTERED=()
+        run: >
+          CHANGED=$(git diff --name-only "${{ steps.range.outputs.range }}" | cut -d/ -f1 | sort -u);
+          FILTERED=();
           for f in $CHANGED; do
-            if [ -d "$f" ]; then
-              FILTERED+=("$f")
-            fi
-          done
-
-          if [ ${#FILTERED[@]} -eq 0 ]; then
-            JSON="[]"
-          else
-            JSON=$(printf '%s\n' "${FILTERED[@]}" | jq -R . | jq -s .)
-          fi
-
-          echo "folders=$JSON" >> $GITHUB_OUTPUT
-          echo "Changed service folders: $JSON"
+            if [ -d "$f" ]; then FILTERED+=("$f"); fi;
+          done;
+          if [ "${#FILTERED[@]}" -eq 0 ];
+          then JSON="[]";
+          else JSON=$(printf "%s\n" "${FILTERED[@]}" | jq -R -s "map(.)");
+          fi;
+          printf "folders=%s\n" "$JSON" >> "$GITHUB_OUTPUT";
+          printf "Changed service folders: %s\n" "$JSON"
 
 
   run-services:
@@ -77,45 +73,34 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Processing service
-        run: echo "Service detected: ${{ matrix.folder }}"
+        run: printf "Processing folder %s\n" "${{ matrix.folder }}"
 
       - name: Check Dockerfile exists
         id: check
-        run: |
-          if [ -f "${{ matrix.folder }}/Dockerfile" ]; then
-            echo "exists=true" >> $GITHUB_OUTPUT
-          else
-            echo "exists=false" >> $GITHUB_OUTPUT
+        run: >
+          if [ -f "${{ matrix.folder }}/Dockerfile" ];
+          then printf "exists=true\n" >> "$GITHUB_OUTPUT";
+          else printf "exists=false\n" >> "$GITHUB_OUTPUT";
           fi
 
       - name: Build container
         if: steps.check.outputs.exists == 'true'
-        run: |
-          IMAGE="${{ matrix.folder }}:ci"
-          echo "Building image $IMAGE from folder '${{ matrix.folder }}'"
+        run: >
+          IMAGE="${{ matrix.folder }}:ci";
+          printf "Building image %s\n" "$IMAGE";
           docker build -t "$IMAGE" "${{ matrix.folder }}"
 
       - name: Run container
         if: steps.check.outputs.exists == 'true'
-        run: |
-          IMAGE="${{ matrix.folder }}:ci"
-          NAME="${{ matrix.folder }}-run"
-
-          echo "Running container: $NAME"
-          docker run -d --name "$NAME" "$IMAGE"
-
-          echo "Waiting for container startup..."
-          sleep 3
-
-          echo "===== Container Logs ====="
-          docker logs "$NAME"
-
-          echo "Stopping container..."
-          docker stop "$NAME" || true
-
-          echo "Removing container..."
-          docker rm "$NAME" || true
+        run: >
+          IMAGE="${{ matrix.folder }}:ci";
+          NAME="${{ matrix.folder }}-run";
+          printf "Running container: %s\n" "$NAME";
+          docker run -d --name "$NAME" "$IMAGE";
+          sleep 3;
+          docker logs "$NAME";
+          docker rm -f "$NAME"
 
       - name: Dockerfile missing - skip
         if: steps.check.outputs.exists == 'false'
-        run: echo "Skipping '${{ matrix.folder }}' → No Dockerfile found."
+        run: printf "Skipping %s → No Dockerfile found.\n" "${{ matrix.folder }}"
